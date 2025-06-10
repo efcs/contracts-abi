@@ -343,35 +343,30 @@ struct descriptor_table_t {
 enum descriptor_entry_kind_t : uint8_t {
   // unknown/reserved = 0x00, // Unknown or reserved type.
   
-  builtin = 0x01,
-  
-  reserved = 0x01, // Reserved for future use.
-  reserved2 = 0x02, // Reserved for future use.
-  reserved3 = 0x03, // Reserved for future use.
-  ...
-  reserved15 = 0x0F, // Reserved for future use.
-  
-  extended_descriptor = 0x1
-  
-  vendor_extension = 0x100, // Vendor-specific extension, which may be used to identify the data.
+  // default summary representation, containing source location, source text, and assertion kind (see below)
+  summary = 0x01, // A summary descriptor, which contains the source location, source text, and assertion kind.
 
-  extended = 0x04, // Builtin type, such as `std::source_location`, `std::assertion_kind`, etc.
-  vendor_specific = 0x02, // Vendor-specific type, which may be used to identify the data.
+  // builtins
+  // a pointer to a _SourceLoc
+  source_location_ptr = 0x11,
+  // A _SourceLoc inline structure.
+  source_location_inline = 0x12,
+  // A pointer to a null-terminated string
+  source_text = 0x13,
+  // The kind of assertion, such as pre/post/contract_assert.
+  assertion_kind = 0x14,
+  
     
-  // Values < 32 describe both the type and purpose of the data.
-  source_location = 0x01, // std::source_location
-  source_text = 0x02, // const char*
+  // reserved = 0x21, // Reserved for future use.
+  // reserved = 0x22, // Reserved for future use.
+  // reserved = 0x2F, // Reserved for future use.
+    
+  extended = 0x30, // Extended descriptor entry, of type `extended_descriptor_entry_t`
   
-  
-  // 32 <= Values < 64 are reserved for standard data types.
-  // the purpose of the data type
-  ntbs = 0x20, // std::assertion_kind
-  
-  // Values > 200 are reserved for vendor-specific data.
-  // The vendor ID must also be specified in the descriptor entry.
+  vendor = 0x40, // Vendor-specific descriptor, of type `vendor_extended_descriptor_entry_t`
 };  
 
-struct descriptor_entry_base_t {
+struct base_descriptor_entry_t {
     // The type of the data.
     // This is a vendor-specific type, which can be used to identify the data.
     descriptor_entry_kind_t descripton_type;
@@ -380,69 +375,84 @@ struct descriptor_entry_base_t {
     uint16_t offset;
 };
 
-enum builtin_descriptor_type_t : uint8_t {
-    // The type of the data is a standard type, such as `std::source_location`, `std::assertion_kind`, etc.
-    // The type is specified by the `descriptor_entry_kind_t` enumeration.
-    
-    source_location_struct = 0x01, // _SourceLoc inline
-    source_location_ptr = 0x02, // std::source_location*
-    source_text = 0x03, // const char*
-};
-
-struct basic_descriptor_entry_t : descriptor_entry_base_t {
+struct extended_descriptor_entry_t : base_descriptor_entry_t {
     // The type of the data.
     // This is a standard type, such as `std::source_location`, `std::assertion_kind`, etc.
     // The type is specified by the `descriptor_entry_kind_t` enumeration.
-    enum : uint8_t { 
-        // A _SourceLoc inline structure.
-        source_location_inline = 0x01, 
-        // A pointer to a _SourceLoc structure.
-        source_location_pointer = 0x02, 
-        // A pointer to a null-terminated string.
-        source_text = 0x03
-        // All other enumerator values are reserved for future use.
-    } builtin_descriptor_type;
-    
-    builtin_descriptor_type_t entry_type;
-    
-    // The size and underlying type of the data are specified by the itanium representation.
-};
-
-struct extended_descriptor_entry_t : descriptor_entry_base_t {
-    // The type of the data.
-    // This is a vendor-specific type, which can be used to identify the data.
-    uint8_t vendor_id; // The vendor ID, which can be used to identify the data.
-    
     // The size of the data, in bytes.
     uint16_t size;
+    
+    const char* data_type; // Or some other representation of the type
     
     // The name of the data, which can be used to identify the data.
     const char *name; // The name of the data, which can be used to identify the data.
 };
 
-struct vendor_extended_descriptor_entry_t : descriptor_entry_base_t {
+struct vendor_extended_descriptor_entry_t : base_descriptor_entry_t {
     // The type of the data.
     // This is a vendor-specific type, which can be used to identify the data.
-    uint8_t vendor_id; // The vendor ID, which can be used to identify the data.
+    uint8_t  vendor_id ; // The vendor ID, which can be used to identify the data.
     
-    // The size of the data, in bytes.
-    uint16_t size;
-    
-    // The name of the data, which can be used to identify the data.
-    const char *name; // The name of the data, which can be used to identify the data.
+    // Whatever the fudge the vendor wants to put here.
 };
 ```
 
-So a basic static descriptor table may look like this:
+The extended and vendor specific descriptor tables are not required for the initial implementation,
+but they are provided to allow for future extensibility and vendor-specific extensions (or at least to provide an idea of how to do it).
+
+Further, this document proposes a default layout for the needed static data, which can be used to identify the entirey of the
+data in a single descriptor entry.
+
+One possible layout is as follows:
+
+| Type                        | Offset in Static Data               | Size in Bytes   |
+|-----------------------------|-------------------------------------|-----------------|
+| `_SourceLoc` pointer        | 0                                   | sizeof(void*)   |
+| `const char*` (source text) | sizeof(void*)                       | sizeof(void*)   |
+| `std::assertion_kind`       | sizeof(void*) * 2                   | sizeof(uint8_t) |
+
+Implementations could omit the source location or source text by providing a null pointer,
+or by using a more complex descriptor table representation.
+
+The most basic summary descriptor table is as follows:
+```c++
+base_descriptor_entry_t summary_entry = {
+    .descripton_type = descriptor_entry_kind_t::summary,
+    .offset = 0,
+};
+descriptor_table_t descriptor_table_summary = {
+    .version = 1,
+    .num_entries = 1,
+    .entries = {
+        &summary_entry,
+    }
+};
+```
+
+This would describe the same data layout as the more-detailed descriptor table below, but in a more compact form.
+
 
 ```c++
-
-builtin_descriptor_entry_t static_descriptor_table[] = {
-    { .entry_type = builtin_descriptor_type_t::source_location, .offset = 0 },
-    { .entry_type = builtin_descriptor_type_t::source_text, .offset = sizeof(source_location_ptr_t) },
-    { .entry_type = builtin_descriptor_type_t::assertion_kind, .offset = sizeof(source_location_ptr_t) + sizeof(const char*) },
-    { .entry_type = builtin_descriptor_type_t::evaluation_semantic, .offset = sizeof(source_location_ptr_t) + sizeof(const char*) + sizeof(std::assertion_kind) },
-    { .entry_type = builtin_descriptor_type_t::detection_mode, .offset = sizeof(source_location_ptr_t) + sizeof(const char*) + sizeof(std::assertion_kind) + sizeof(std::evaluation_semantic) },
+base_descriptor_entry_t source_location_ptr_entry = {
+    .descripton_type = descriptor_entry_kind_t::source_location_ptr,
+    .offset = 0,
+};
+base_descriptor_entry_t source_text_entry = {
+    .descripton_type = descriptor_entry_kind_t::source_text,
+    .offset = sizeof(void*),
+};
+base_descriptor_entry_t assertion_kind_entry = {
+    .descripton_type = descriptor_entry_kind_t::assertion_kind,
+    .offset = sizeof(void*) * 2,
+};
+descriptor_table_t default_descriptor = {
+    .version = 1,
+    .num_entries = 3,
+    .entries = {
+        &source_location_ptr_entry,
+        &source_text_entry,
+        &assertion_kind_entry,
+    }
 };
 
 ```
