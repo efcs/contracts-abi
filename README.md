@@ -1,4 +1,5 @@
-# Add Comments at https://github.com/efcs/contracts-abi/pull/1
+# Add Comments [HERE](https://github.com/efcs/contracts-abi/pull/1)
+
 ### Motivations & Concerns (What goals must this design achieve? What are the concerns that this design addresses?)
 
 The primary goal of this document is to specify the Itanium C++ ABI for the contract entrypoint function.
