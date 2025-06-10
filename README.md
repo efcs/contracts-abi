@@ -1,18 +1,4 @@
-I work on Clang, libc++, and am a part of the C++ standard committee.
-
-We are working on C++ contracts, a new feature in C++26. Specifically, we're working
-on a specification for the itanium runtime ABI for contracts.
-
-When the compiler generates code for contracts, it will emit calls to the runtime 
-"entrypoint" function, `__handle_contract_failure`, which takes the relevant data
-and constructs a `std::contract_violation` object before invoking the violation handler.
-
-Today we're writing a specification for the ABI of this function and it's arguments,
-which is used by the compiler to generate the appropriate calls in a portable manner.
-
-
-The document must describe the following topics:
-
+# Add Comments at https://github.com/efcs/contracts-abi/pull/1
 ### Motivations & Concerns (What goals must this design achieve? What are the concerns that this design addresses?)
 
 The primary goal of this document is to specify the Itanium C++ ABI for the contract entrypoint function.
