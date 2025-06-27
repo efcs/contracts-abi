@@ -373,16 +373,19 @@ The static data descriptor is specified in two parts:
 // Suggestion: New vendors should hash the name of their runtime dylib and use the hash (truncated to 4 bits) as the vendor ID.
 enum vendor_it_t : uint8_t {
     VENDOR_GENERIC = 0x00, // Generic, no vendor-specific data.
-    VENDOR_IT_CLANG = 0x01, // Clang
-    VENDOR_IT_GCC   = 0x02, // GCC
-    VENDOR_IT_MSVC  = 0x03, // MSVC
+    VENDOR_CLANG = 0x01, // Clang
+    VENDOR_GCC   = 0x02, // GCC
+    VENDOR_MSVC  = 0x03, // MSVC
     // Future vendors can be added here.
 };
 
 
 struct descriptor_table_t {
-    // The size of the static data, in bytes.
-    uint8_t version; // in case we need it.
+    uint8_t version   : 4; // in case we need it.
+    uint8_t vendor_id : 4; // The vendor ID
+    
+    // The version info in the first 4 bits, and the vendor ID in the last 4 bits.
+    
     // The number of entries in the descriptor.
     uint8_t num_entries;
     
@@ -440,9 +443,7 @@ struct extended_descriptor_entry_t : base_descriptor_entry_t {
 };
 
 struct vendor_extended_descriptor_entry_t : base_descriptor_entry_t {
-    // The type of the data.
-    // This is a vendor-specific type, which can be used to identify the data.
-    uint8_t  vendor_id ; // The vendor ID, which can be used to identify the data.
+    // The vendor ID information is present in the first 4 bits of the `version_and_vendor_info` field.
     
     // Whatever the vendor wants to put here.
 };
@@ -465,21 +466,6 @@ One possible layout is as follows:
 Implementations could omit the source location or source text by providing a null pointer,
 or by using a more complex descriptor table representation.
 
-The most basic summary descriptor table is as follows:
-```c++
-base_descriptor_entry_t summary_entry = {
-    .description_type = descriptor_entry_kind_t::summary,
-    .offset = 0,
-};
-descriptor_table_t descriptor_table_summary = {
-    .version = 1,
-    .num_entries = 1,
-    .entries = {
-        &summary_entry,
-    }
-};
-```
-
 This would describe the same data layout as the more-detailed descriptor table below, but in a more compact form.
 
 
@@ -498,6 +484,7 @@ base_descriptor_entry_t assertion_kind_entry = {
 };
 descriptor_table_t default_descriptor = {
     .version = 1,
+    .vendor_id = vendor_it_t::VENDOR_FOO,
     .num_entries = 3,
     .entries = {
         &source_location_ptr_entry,
